@@ -1,5 +1,8 @@
-FROM java:8
-ADD novel-admin-1.0.0.jar /root
+FROM 192.168.1.45:80/noval/java:8
+USER root
+ENV TZ Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+ADD ./novel-admin-1.0.0.jar /root
 ENV dburl=""
 ENV username=""
 ENV	password=""
