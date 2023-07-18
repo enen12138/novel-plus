@@ -14,12 +14,7 @@ spec:
       timeoutSeconds: 600
       maxUnavailable: 25%
       maxSurge: 25%
-    resources: {}
-    activeDeadlineSeconds: 21600
-  triggers:
-    - type: ConfigChange
-  replicas: 1
-  test: false
+  replicas: 2
   selector:
     app: novel-admin
     deploymentconfig: novel-admin
@@ -39,17 +34,13 @@ spec:
         - name: heapdump-volume
           hostPath:
             path: /app/heapdump
-      containers:
+    containers:
         - name: novel-admin
           image: >-
             docker-test-local.art.ocp.csvw.com/svw-idp-test/idp-selfcare-pro:1.0.87
           ports:
             - name: jolokia
               containerPort: 8778
-              protocol: TCP
-            - containerPort: 8080
-              protocol: TCP
-            - containerPort: 8443
               protocol: TCP
           env:
             - name: JAVA_OPTIONS
@@ -64,13 +55,13 @@ spec:
             - name: GC_MAX_METASPACE_SIZE
               value: '200'
             - name: CONFIGSERVER_URL
-              value: 'http://idp-configserv-pro:8080'
+              value: 'http://novel-admin:8080'
             - name: MAXFILESIZE
               value: 50MB
             - name: TOTALSIZECAPS
               value: 7GB
             - name: SERVICENAME
-              value: idp-selfcare-pro
+              value: novel-admin
           resources:
             limits:
               cpu: 500m
@@ -87,7 +78,7 @@ spec:
               mountPath: /var/log/app
           readinessProbe:
             httpGet:
-              path: /esc-selfcare/health
+              path: /novel-admin/health
               port: 8080
               scheme: HTTP
             initialDelaySeconds: 30
@@ -95,8 +86,6 @@ spec:
             periodSeconds: 10
             successThreshold: 1
             failureThreshold: 5
-          terminationMessagePath: /dev/termination-log
-          terminationMessagePolicy: File
           imagePullPolicy: Always
           securityContext:
             privileged: false
@@ -104,11 +93,11 @@ spec:
           image: 'dt-cluster.ocp.csvw.com:5000/library/filebeat:6.5.4'
           env:
             - name: APP_NAME
-              value: idp-selfcare-pro
+              value: novel-admin
             - name: APP_LOG_TOPIC
-              value: test-svw-idp
+              value: novel-admin
             - name: APP_CACHE_LOG_TOPIC
-              value: test-cache-svw-idp
+              value: novel-admin
             - name: KAFKA_HOSTS
               value: >-
                 ["test-ece1.kafka.sitc:9092","test-ece2.kafka.sitc:9092","test-ece3.kafka.sitc:9092"]
@@ -143,27 +132,15 @@ spec:
         type: primary
       securityContext: {}
       schedulerName: default-scheduler
-status:
-  latestVersion: 432
-  observedGeneration: 658
-  replicas: 1
-  updatedReplicas: 0
-  availableReplicas: 1
-  unavailableReplicas: 0
-  details:
-    message: config change
-    causes:
-      - type: ConfigChange
-  conditions:
-    - type: Available
-      status: 'True'
-      lastUpdateTime: '2022-04-25T08:51:51Z'
-      lastTransitionTime: '2022-04-25T08:51:51Z'
-      message: Deployment config has minimum availability.
-    - type: Progressing
-      status: 'False'
-      lastUpdateTime: '2022-04-27T02:33:37Z'
-      lastTransitionTime: '2022-04-27T02:33:37Z'
-      reason: ProgressDeadlineExceeded
-      message: replication controller "idp-selfcare-pro-431" has failed progressing
-  readyReplicas: 1
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - web
+                topologyKey: kubernetes.io/hostname
