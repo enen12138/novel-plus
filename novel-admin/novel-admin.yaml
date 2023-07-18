@@ -4,7 +4,7 @@ metadata:
   name: novel-admin
   namespace: novel
   labels:
-    app: idp-selfcare-pro
+    app: novel-admin
 spec:
   strategy:
     type: Rolling
@@ -21,16 +21,13 @@ spec:
   replicas: 1
   test: false
   selector:
-    app: idp-selfcare-pro
-    deploymentconfig: idp-selfcare-pro
+    app: novel-admin
+    deploymentconfig: novel-admin
   template:
     metadata:
-      creationTimestamp: null
       labels:
-        app: idp-selfcare-pro
-        deploymentconfig: idp-selfcare-pro
-      annotations:
-        openshift.io/generated-by: OpenShiftNewApp
+        app: novel-admin
+        deploymentconfig: novel-admin
     spec:
       volumes:
         - name: tmp-volume-1
@@ -43,7 +40,7 @@ spec:
           hostPath:
             path: /app/heapdump
       containers:
-        - name: idp-selfcare-pro
+        - name: novel-admin
           image: >-
             docker-test-local.art.ocp.csvw.com/svw-idp-test/idp-selfcare-pro:1.0.87
           ports:
