@@ -1,0 +1,146 @@
+kind: DeploymentConfig
+apiVersion: v1
+metadata:
+  name: novel-admin
+  namespace: novel
+  labels:
+    app: novel-admin
+spec:
+  strategy:
+    type: Rolling
+    rollingParams:
+      updatePeriodSeconds: 1
+      intervalSeconds: 1
+      timeoutSeconds: 600
+      maxUnavailable: 25%
+      maxSurge: 25%
+  replicas: 2
+  selector:
+    app: novel-admin
+    deploymentconfig: novel-admin
+  template:
+    metadata:
+      labels:
+        app: novel-admin
+        deploymentconfig: novel-admin
+    spec:
+      volumes:
+        - name: tmp-volume-1
+          emptyDir: {}
+        - name: applog
+          emptyDir: {}
+        - name: filebeat-data
+          emptyDir: {}
+        - name: heapdump-volume
+          hostPath:
+            path: /app/heapdump
+    containers:
+        - name: novel-admin
+          image: >-
+            docker-test-local.art.ocp.csvw.com/svw-idp-test/idp-selfcare-pro:1.0.87
+          ports:
+            - name: jolokia
+              containerPort: 8778
+              protocol: TCP
+          env:
+            - name: JAVA_OPTIONS
+              value: >-
+                -Xms1024m -Xmx1024m -Djava.security.egd=file:/dev/./urandom
+                -Dfile.encoding=UTF-8 -Duser.language=zh -Duser.country=CN
+                -XX:+HeapDumpOnOutOfMemoryError
+                -XX:HeapDumpPath=/deployments/heapdump/idp-selfcare-pro.hprof
+                -Drocketmq.client.logRoot=/var/log/app/rocketmq
+                -Drocketmq.client.logFileMaxIndex=10
+                -Drocketmq.client.logFileMaxSize=20971520
+            - name: GC_MAX_METASPACE_SIZE
+              value: '200'
+            - name: CONFIGSERVER_URL
+              value: 'http://novel-admin:8080'
+            - name: MAXFILESIZE
+              value: 50MB
+            - name: TOTALSIZECAPS
+              value: 7GB
+            - name: SERVICENAME
+              value: novel-admin
+          resources:
+            limits:
+              cpu: 500m
+              memory: 2Gi
+            requests:
+              cpu: 250m
+              memory: 1Gi
+          volumeMounts:
+            - name: tmp-volume-1
+              mountPath: /tmp
+            - name: heapdump-volume
+              mountPath: /deployments/heapdump
+            - name: applog
+              mountPath: /var/log/app
+          readinessProbe:
+            httpGet:
+              path: /novel-admin/health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            timeoutSeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 5
+          imagePullPolicy: Always
+          securityContext:
+            privileged: false
+        - name: filebeat
+          image: 'dt-cluster.ocp.csvw.com:5000/library/filebeat:6.5.4'
+          env:
+            - name: APP_NAME
+              value: novel-admin
+            - name: APP_LOG_TOPIC
+              value: novel-admin
+            - name: APP_CACHE_LOG_TOPIC
+              value: novel-admin
+            - name: KAFKA_HOSTS
+              value: >-
+                ["test-ece1.kafka.sitc:9092","test-ece2.kafka.sitc:9092","test-ece3.kafka.sitc:9092"]
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+          resources:
+            limits:
+              cpu: '1'
+              memory: 1Gi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          volumeMounts:
+            - name: tmp-volume-1
+              mountPath: /tmp
+            - name: applog
+              mountPath: /var/log/app
+            - name: filebeat-data
+              mountPath: /usr/share/filebeat/data
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: Always
+          securityContext:
+            privileged: false
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      nodeSelector:
+        type: primary
+      securityContext: {}
+      schedulerName: default-scheduler
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - web
+                topologyKey: kubernetes.io/hostname
